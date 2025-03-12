@@ -67,29 +67,30 @@ export const action = async ({ request, params }) => {
   console.log("badge: ", badge);
 
   if (!productId || !badge) {
-    return new Response(
-      JSON.stringify({ error: "Missing product ID or badge" }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return {
+      status: 200,
+      type: "critical",
+      message: "Missing product ID or badge",
+    };
   }
 
-  // const mutation = `
-  // mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
-  //   metafieldsSet(metafields: $metafields) {
-  //     metafields {
-  //       key
-  //       namespace
-  //       value
-  //       createdAt
-  //       updatedAt
-  //     }
-  //     userErrors {
-  //       field
-  //       message
-  //       code
-  //     }
-  //   }
-  // }`;
+  const mutation = `
+  mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      metafields {
+        key
+        namespace
+        value
+        createdAt
+        updatedAt
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }`;
 
   // const variables = {
   //   metafields: [
@@ -103,38 +104,19 @@ export const action = async ({ request, params }) => {
   //   ],
   // };
 
-  const response = await admin.graphql(
-    `
-mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
-  metafieldsSet(metafields: $metafields) {
-    metafields {
-      key
-      namespace
-      value
-      createdAt
-      updatedAt
-    }
-    userErrors {
-      field
-      message
-      code
-    }
-  }
-}`,
-    {
-      variables: {
-        metafields: [
-          {
-            key: "app_badges",
-            namespace: "custom",
-            ownerId: productId,
-            type: "single_line_text_field",
-            value: badge,
-          },
-        ],
-      },
+  const response = await admin.graphql(mutation, {
+    variables: {
+      metafields: [
+        {
+          key: "app_badges",
+          namespace: "custom",
+          ownerId: productId,
+          type: "single_line_text_field",
+          value: badge,
+        },
+      ],
     },
-  );
+  });
 
   console.log("response api: ", response);
 
@@ -148,6 +130,7 @@ mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
   // }
 
   return {
+    status: 200,
     type: "success",
     message: "Badge saved to Product successfully",
   };
@@ -157,14 +140,11 @@ export default function Index() {
   const products = useLoaderData(); // Remix Hook to get the data from the loader
   const submit = useSubmit(); // Remix Hook to programmatically submit the form
   const actionData = useActionData(); // Remix Hook to use the data return from the action
-  const nav = useNavigation();
+  const navigation = useNavigation(); // Remix Hook to identify the state of navigation or submission
   const shopify = useAppBridge();
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedBadge, setSelectedBadge] = useState("");
-
-  const [status, setStatus] = useState({ type: "", message: "" });
-
-  console.log("nav: ", nav?.formData?.status);
+  const isFormSubmitting = navigation.state === "submitting";
 
   const handleSubmit = (e) => {
     e.preventDefault(); // Prevent Default of the Form
@@ -176,10 +156,6 @@ export default function Index() {
     };
 
     formData.set("data", JSON.stringify(data)); // Stringify the object
-
-    console.log("formData: ", formData);
-    console.log("data: ", data);
-
     submit(formData, { method: "post" });
   };
 
@@ -205,12 +181,8 @@ export default function Index() {
                   onChange={setSelectedBadge}
                   value={selectedBadge}
                 />
-                <Button primary submit disabled={status.type === "loading"}>
-                  {status.type === "loading" ? (
-                    <Spinner size="small" />
-                  ) : (
-                    "Save"
-                  )}
+                <Button primary submit disabled={isFormSubmitting}>
+                  {isFormSubmitting ? <Spinner size="small" /> : "Save"}
                 </Button>
               </FormLayout>
             </Form>
