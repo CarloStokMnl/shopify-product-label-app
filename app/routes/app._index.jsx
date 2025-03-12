@@ -1,16 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   useActionData,
-  useFetcher,
   useLoaderData,
-  useNavigate,
   useNavigation,
   useSubmit,
 } from "@remix-run/react";
 import {
   Page,
   Layout,
-  Card,
   BlockStack,
   Select,
   Button,
@@ -19,7 +16,7 @@ import {
   Form,
   FormLayout,
 } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 
 const badgeOptions = [
@@ -54,13 +51,12 @@ export const loader = async ({ request }) => {
   return products?.edges?.map((edge) => edge?.node);
 };
 
-export const action = async ({ request, params }) => {
+export const action = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-  const formData = await request.formData();
+  const formData = await request.formData(); // get the form data that was passed from submit()
   const rawData = formData?.get("data"); // Get the stringified object
   const data = JSON.parse(rawData); // Parse it back to an object
-  const productId = data?.productId;
-  const badge = data?.badge;
+  const { productId, badge } = data; // destructure data
 
   if (!productId || !badge) {
     return {
@@ -70,6 +66,7 @@ export const action = async ({ request, params }) => {
     };
   }
 
+  //Mutation to add the Metafield
   const mutation = `
   mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
     metafieldsSet(metafields: $metafields) {
@@ -88,6 +85,7 @@ export const action = async ({ request, params }) => {
     }
   }`;
 
+  //Values to add
   const variables = {
     metafields: [
       {
@@ -100,24 +98,23 @@ export const action = async ({ request, params }) => {
     ],
   };
 
-  const response = await admin.graphql(mutation, { variables: variables });
+  try {
+    await admin.graphql(mutation, { variables: variables });
 
-  console.log("response api: ", response);
+    return {
+      status: 200,
+      type: "success",
+      message: "Badge saved to Product successfully",
+    };
+  } catch (response) {
+    console.error("Error: ", response?.errors?.message);
 
-  // if (response.data.metafieldsSet.userErrors.length > 0) {
-  //   return new Response(
-  //     JSON.stringify({
-  //       error: response.data.metafieldsSet.userErrors[0].message,
-  //     }),
-  //     { status: 400, headers: { "Content-Type": "application/json" } },
-  //   );
-  // }
-
-  return {
-    status: 200,
-    type: "success",
-    message: "Badge saved to Product successfully",
-  };
+    return {
+      status: 500,
+      type: "critical",
+      message: "Error occure while processing request. Please try again.",
+    };
+  }
 };
 
 export default function Index() {
@@ -128,7 +125,16 @@ export default function Index() {
   const shopify = useAppBridge();
   const [selectedProduct, setSelectedProduct] = useState("");
   const [selectedBadge, setSelectedBadge] = useState("");
-  const isFormSubmitting = navigation.state === "submitting";
+  const isFormSubmitting = navigation.state === "submitting"; // Set state if the form was submitting
+  const [hideBannerMessage, setHideBannerMessage] = useState(false);
+  const [bannerMessage, setBannerMessage] = useState(actionData?.message);
+  const actionFormSuccess =
+    actionData?.type === "success" ? "success" : "critical";
+
+  const handleOnDismissBanner = () => {
+    setBannerMessage(""); // Clear the Banner Message
+    setHideBannerMessage(true); // Hide the Banner Bar
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault(); // Prevent Default of the Form
@@ -139,9 +145,18 @@ export default function Index() {
       badge: selectedBadge,
     };
 
+    //add the data to formdata
     formData.set("data", JSON.stringify(data)); // Stringify the object
+
+    //Pass the formdata to submit hook
     submit(formData, { method: "post" });
   };
+
+  //Re-render the UI when actionData was changed
+  useEffect(() => {
+    setBannerMessage(actionData?.message); // Update the Banner Message
+    setHideBannerMessage(false); // Show the Banner Bar
+  }, [actionData]); // Use ActionData as Dependency to force re-render
 
   return (
     <Page title="Product Badges">
@@ -170,10 +185,12 @@ export default function Index() {
                 </Button>
               </FormLayout>
             </Form>
-            {actionData?.message && (
+            {bannerMessage && !hideBannerMessage && (
               <Banner
-                title={actionData?.message}
-                status={actionData?.type === "success" ? "success" : "critical"}
+                hideIcon={false}
+                onDismiss={handleOnDismissBanner}
+                title={bannerMessage}
+                tone={actionFormSuccess}
               />
             )}
           </Layout.Section>
