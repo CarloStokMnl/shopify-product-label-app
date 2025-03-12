@@ -31,6 +31,7 @@ const badgeOptions = [
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
 
+  //Get the Products
   const query = `
     query {
       products(first: 10) {
@@ -50,8 +51,6 @@ export const loader = async ({ request }) => {
     data: { products },
   } = await response.json();
 
-  console.log("product: ", products);
-
   return products?.edges?.map((edge) => edge?.node);
 };
 
@@ -62,9 +61,6 @@ export const action = async ({ request, params }) => {
   const data = JSON.parse(rawData); // Parse it back to an object
   const productId = data?.productId;
   const badge = data?.badge;
-
-  console.log(productId);
-  console.log("badge: ", badge);
 
   if (!productId || !badge) {
     return {
@@ -92,31 +88,19 @@ export const action = async ({ request, params }) => {
     }
   }`;
 
-  // const variables = {
-  //   metafields: [
-  //     {
-  //       ownerId: productId,
-  //       namespace: "custom",
-  //       key: "badge",
-  //       type: "single_line_text_field",
-  //       value: badge,
-  //     },
-  //   ],
-  // };
+  const variables = {
+    metafields: [
+      {
+        ownerId: productId,
+        namespace: "custom",
+        key: "badge",
+        type: "single_line_text_field",
+        value: badge,
+      },
+    ],
+  };
 
-  const response = await admin.graphql(mutation, {
-    variables: {
-      metafields: [
-        {
-          key: "app_badges",
-          namespace: "custom",
-          ownerId: productId,
-          type: "single_line_text_field",
-          value: badge,
-        },
-      ],
-    },
-  });
+  const response = await admin.graphql(mutation, { variables: variables });
 
   console.log("response api: ", response);
 
