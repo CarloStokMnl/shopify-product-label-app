@@ -9,12 +9,18 @@ import {
   Page,
   Layout,
   BlockStack,
-  Select,
   Button,
   Banner,
   Spinner,
   Form,
   FormLayout,
+  ChoiceList,
+  MediaCard,
+  Card,
+  InlineStack,
+  Text,
+  Thumbnail,
+  ButtonGroup,
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
@@ -36,6 +42,7 @@ export const loader = async ({ request }) => {
           node {
             id
             title
+            description
           }
         }
       }
@@ -56,9 +63,10 @@ export const action = async ({ request }) => {
   const formData = await request.formData(); // get the form data that was passed from submit()
   const rawData = formData?.get("data"); // Get the stringified object
   const data = JSON.parse(rawData); // Parse it back to an object
-  const { productId, badge } = data; // destructure data
+  const { productId, multipleSelected } = data; // destructure data
+  const stringMultiBadge = JSON.stringify(multipleSelected);
 
-  if (!productId || !badge) {
+  if (!productId) {
     return {
       status: 200,
       type: "critical",
@@ -91,9 +99,9 @@ export const action = async ({ request }) => {
       {
         ownerId: productId,
         namespace: "custom",
-        key: "badge",
-        type: "single_line_text_field",
-        value: badge,
+        key: "app_badges",
+        type: "list.single_line_text_field",
+        value: stringMultiBadge,
       },
     ],
   };
@@ -107,7 +115,7 @@ export const action = async ({ request }) => {
       message: "Badge saved to Product successfully",
     };
   } catch (response) {
-    console.error("Error: ", response?.errors?.message);
+    console.error("Error: ", response);
 
     return {
       status: 500,
@@ -123,17 +131,34 @@ export default function Index() {
   const actionData = useActionData(); // Remix Hook to use the data return from the action
   const navigation = useNavigation(); // Remix Hook to identify the state of navigation or submission
   const shopify = useAppBridge();
-  const [selectedProduct, setSelectedProduct] = useState("");
-  const [selectedBadge, setSelectedBadge] = useState("");
+  const [selectedProduct, setSelectedProduct] = useState();
+  const [multipleSelected, setMultipleSelected] = useState([]);
   const isFormSubmitting = navigation.state === "submitting"; // Set state if the form was submitting
   const [hideBannerMessage, setHideBannerMessage] = useState(false);
   const [bannerMessage, setBannerMessage] = useState(actionData?.message);
   const actionFormSuccess =
     actionData?.type === "success" ? "success" : "critical";
 
+  const handleShopifyResourcePicker = async () => {
+    const productPicked = await window.shopify.resourcePicker({
+      type: "product",
+      action: "select",
+    });
+
+    if (productPicked) {
+      console.log(productPicked);
+      setSelectedProduct(productPicked[0]);
+    }
+  };
+
+  const handleMultipleSelect = (value) => {
+    setMultipleSelected(value);
+  };
+
   const handleOnDismissBanner = () => {
     setBannerMessage(""); // Clear the Banner Message
     setHideBannerMessage(true); // Hide the Banner Bar
+    setMultipleSelected([]);
   };
 
   const handleSubmit = (e) => {
@@ -141,8 +166,8 @@ export default function Index() {
     const formData = new FormData(); // get the data from the Form using the New FormData API
 
     const data = {
-      productId: selectedProduct,
-      badge: selectedBadge,
+      productId: selectedProduct?.id,
+      multipleSelected: multipleSelected,
     };
 
     //add the data to formdata
@@ -163,22 +188,55 @@ export default function Index() {
       <BlockStack gap="500">
         <Layout>
           <Layout.Section>
+            {selectedProduct && (
+              <Card roundedAbove="sm">
+                <BlockStack gap="500">
+                  <BlockStack gap="200">
+                    {selectedProduct?.images?.[0]?.originalSrc && (
+                      <Thumbnail
+                        size="large"
+                        source={selectedProduct?.images?.[0]?.originalSrc}
+                        alt={selectedProduct?.title}
+                      />
+                    )}
+                    {selectedProduct?.title && (
+                      <Text as="h2" variant="headingSm">
+                        {selectedProduct?.title}
+                      </Text>
+                    )}
+                    {selectedProduct?.descriptionHtml &&
+                      selectedProduct?.descriptionHtml}
+                  </BlockStack>
+                  <InlineStack>
+                    <ButtonGroup>
+                      <Button
+                        onClick={() => {}}
+                        accessibilityLabel="Enable two-step authentication"
+                      >
+                        Enable two-step authentication
+                      </Button>
+                      <Button variant="plain">Learn more</Button>
+                    </ButtonGroup>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
+            )}
+
             <Form onSubmit={handleSubmit}>
               <FormLayout>
-                <Select
-                  label="Select Product"
-                  options={products?.map((p) => ({
-                    label: p.title,
-                    value: p.id,
-                  }))}
-                  onChange={setSelectedProduct}
-                  value={selectedProduct}
-                />
-                <Select
-                  label="Select Badge"
-                  options={badgeOptions}
-                  onChange={setSelectedBadge}
-                  value={selectedBadge}
+                {!selectedProduct && (
+                  <Button variant="plain" onClick={handleShopifyResourcePicker}>
+                    Select Product
+                  </Button>
+                )}
+
+                <ChoiceList
+                  title="Select Options"
+                  choices={badgeOptions}
+                  selected={multipleSelected}
+                  onChange={handleMultipleSelect}
+                  allowMultiple
+                  name="multipleSelect"
                 />
                 <Button primary submit disabled={isFormSubmitting}>
                   {isFormSubmitting ? <Spinner size="small" /> : "Save"}
