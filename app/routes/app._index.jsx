@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { redirect } from "@remix-run/node";
 import {
   useActionData,
   useLoaderData,
   useNavigation,
   useSubmit,
+  Link,
 } from "@remix-run/react";
 import {
   Page,
@@ -24,6 +26,18 @@ import {
 } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
+import queryProductById from "../models/queryProductById";
+
+/* TODO
+
+  Better to change to select from window.shopify a product 
+  show it as button
+  edit it as a link
+  use the product.id route
+  get the id from loader param
+  load all the info from product
+  then edit from there
+*/
 
 const badgeOptions = [
   { label: "New Arrival", value: "new" },
@@ -107,13 +121,15 @@ export const action = async ({ request }) => {
   };
 
   try {
-    await admin.graphql(mutation, { variables: variables });
+    // await admin.graphql(mutation, { variables: variables });
 
-    return {
-      status: 200,
-      type: "success",
-      message: "Badge saved to Product successfully",
-    };
+    // return {
+    //   status: 200,
+    //   type: "success",
+    //   message: "Badge saved to Product successfully",
+    // };
+
+    return redirect(`/app/product/${productId}`);
   } catch (response) {
     console.error("Error: ", response);
 
@@ -133,9 +149,11 @@ export default function Index() {
   const shopify = useAppBridge();
   const [selectedProduct, setSelectedProduct] = useState();
   const [multipleSelected, setMultipleSelected] = useState([]);
+  const [isSaveButtonDisable, SetIsSaveButtonDisable] = useState(true);
   const isFormSubmitting = navigation.state === "submitting"; // Set state if the form was submitting
   const [hideBannerMessage, setHideBannerMessage] = useState(false);
   const [bannerMessage, setBannerMessage] = useState(actionData?.message);
+  const [selectedProductId, setSelectedProductId] = useState("");
   const actionFormSuccess =
     actionData?.type === "success" ? "success" : "critical";
 
@@ -146,8 +164,16 @@ export default function Index() {
     });
 
     if (productPicked) {
+      // const queryProduct = await queryProductById(productPicked[0].id);
+      // console.log("queryProduct: ", queryProduct);
       console.log(productPicked);
+      const filteredId = productPicked[0]?.id?.split(
+        "gid://shopify/Product/",
+      )?.[1];
+
+      setSelectedProductId(filteredId);
       setSelectedProduct(productPicked[0]);
+      SetIsSaveButtonDisable(false);
     }
   };
 
@@ -155,10 +181,16 @@ export default function Index() {
     setMultipleSelected(value);
   };
 
+  // Reset Mutiple Selected Badge, Selected Product and Disable Save Button
+  const handleCancelSelection = () => {
+    setMultipleSelected([]);
+    setSelectedProduct();
+    SetIsSaveButtonDisable(true);
+  };
+
   const handleOnDismissBanner = () => {
     setBannerMessage(""); // Clear the Banner Message
     setHideBannerMessage(true); // Hide the Banner Bar
-    setMultipleSelected([]);
   };
 
   const handleSubmit = (e) => {
@@ -177,6 +209,15 @@ export default function Index() {
     submit(formData, { method: "post" });
   };
 
+  // Reset Upon Success Mutiple Selected Badge, Selected Product and Disable Save Button
+  useEffect(() => {
+    if (actionFormSuccess) {
+      setMultipleSelected([]);
+      SetIsSaveButtonDisable(true);
+      setSelectedProduct();
+    }
+  }, [actionFormSuccess]);
+
   //Re-render the UI when actionData was changed
   useEffect(() => {
     setBannerMessage(actionData?.message); // Update the Banner Message
@@ -188,61 +229,65 @@ export default function Index() {
       <BlockStack gap="500">
         <Layout>
           <Layout.Section>
-            {selectedProduct && (
-              <Card roundedAbove="sm">
-                <BlockStack gap="500">
-                  <BlockStack gap="200">
-                    {selectedProduct?.images?.[0]?.originalSrc && (
-                      <Thumbnail
-                        size="large"
-                        source={selectedProduct?.images?.[0]?.originalSrc}
-                        alt={selectedProduct?.title}
-                      />
-                    )}
-                    {selectedProduct?.title && (
-                      <Text as="h2" variant="headingSm">
-                        {selectedProduct?.title}
-                      </Text>
-                    )}
-                    {selectedProduct?.descriptionHtml &&
-                      selectedProduct?.descriptionHtml}
-                  </BlockStack>
-                  <InlineStack>
-                    <ButtonGroup>
-                      <Button
-                        onClick={() => {}}
-                        accessibilityLabel="Enable two-step authentication"
-                      >
-                        Enable two-step authentication
-                      </Button>
-                      <Button variant="plain">Learn more</Button>
-                    </ButtonGroup>
-                  </InlineStack>
-                </BlockStack>
-              </Card>
+            {!selectedProduct && (
+              <Button fullWidth onClick={handleShopifyResourcePicker}>
+                Select Product
+              </Button>
             )}
 
-            <Form onSubmit={handleSubmit}>
-              <FormLayout>
-                {!selectedProduct && (
-                  <Button variant="plain" onClick={handleShopifyResourcePicker}>
-                    Select Product
-                  </Button>
-                )}
+            {selectedProduct && (
+              <>
+                <Card roundedAbove="sm">
+                  <BlockStack gap="500">
+                    <BlockStack gap="200">
+                      {selectedProduct?.images?.[0]?.originalSrc && (
+                        <Thumbnail
+                          size="large"
+                          source={selectedProduct?.images?.[0]?.originalSrc}
+                          alt={selectedProduct?.title}
+                        />
+                      )}
+                      {selectedProduct?.title && (
+                        <Text as="h2" variant="headingSm">
+                          {selectedProduct?.title}
+                        </Text>
+                      )}
+                      {selectedProduct?.descriptionHtml &&
+                        selectedProduct?.descriptionHtml}
+                    </BlockStack>
+                    <InlineStack>
+                      <ButtonGroup>
+                        <Link to={`product/${selectedProductId}`}>Add</Link>
+                        <Button
+                          variant="secondary"
+                          tone="critical"
+                          onClick={handleCancelSelection}
+                          accessibilityLabel="Cancel shipment"
+                        >
+                          Cancel
+                        </Button>
+                      </ButtonGroup>
+                    </InlineStack>
+                  </BlockStack>
+                </Card>
+                <Form onSubmit={handleSubmit}>
+                  <FormLayout>
+                    <ChoiceList
+                      title="Select Options"
+                      choices={badgeOptions}
+                      selected={multipleSelected}
+                      onChange={handleMultipleSelect}
+                      allowMultiple
+                      name="multipleSelect"
+                    />
+                    <Button primary submit disabled={isSaveButtonDisable}>
+                      {isFormSubmitting ? <Spinner size="small" /> : "Save"}
+                    </Button>
+                  </FormLayout>
+                </Form>
+              </>
+            )}
 
-                <ChoiceList
-                  title="Select Options"
-                  choices={badgeOptions}
-                  selected={multipleSelected}
-                  onChange={handleMultipleSelect}
-                  allowMultiple
-                  name="multipleSelect"
-                />
-                <Button primary submit disabled={isFormSubmitting}>
-                  {isFormSubmitting ? <Spinner size="small" /> : "Save"}
-                </Button>
-              </FormLayout>
-            </Form>
             {bannerMessage && !hideBannerMessage && (
               <Banner
                 hideIcon={false}

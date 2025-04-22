@@ -1,7 +1,7 @@
 # Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
 
 client_id = "b0d0f07149fdcc603ed652a7b4c0baf6"
-application_url = "https://rich-amongst-minolta-freebsd.trycloudflare.com"
+application_url = "https://hose-roses-hour-basin.trycloudflare.com"
 embedded = true
 name = "Product Badge App"
 handle = "product-label-app-1"
@@ -27,9 +27,9 @@ scopes = "write_products"
 
 [auth]
 redirect_urls = [
-  "https://rich-amongst-minolta-freebsd.trycloudflare.com/auth/callback",
-  "https://rich-amongst-minolta-freebsd.trycloudflare.com/auth/shopify/callback",
-  "https://rich-amongst-minolta-freebsd.trycloudflare.com/api/auth/callback"
+  "https://hose-roses-hour-basin.trycloudflare.com/auth/callback",
+  "https://hose-roses-hour-basin.trycloudflare.com/auth/shopify/callback",
+  "https://hose-roses-hour-basin.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
